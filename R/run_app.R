@@ -1,3 +1,57 @@
+
+# ---------- En-tête NDVI FASO ----------
+
+css_entete <- "
+.navbar { background:#fff !important; border:0 !important; border-radius:0 !important;
+          margin-bottom:0 !important; min-height:46px; box-shadow:0 1px 0 rgba(0,0,0,.06); }
+.navbar .navbar-brand { display:none; }
+.navbar-nav > li > a { color:#6b7c72 !important; padding:12px 18px !important;
+          border-bottom:3px solid transparent; }
+.navbar-nav > li.active > a, .navbar-nav > li > a:hover {
+          color:#0f6e43 !important; font-weight:500; background:transparent !important;
+          border-bottom:3px solid #0f6e43 !important; }
+.bf-tricolore { display:flex; height:4px; } .bf-tricolore > div { flex:1; }
+body { background:#f5f7f5; }
+"
+
+banniere <- shiny::tags$div(
+  style = "background:#0f6e43;display:flex;align-items:center;gap:16px;padding:18px 22px;",
+  shiny::tags$div(
+    style = "width:52px;height:52px;border-radius:12px;background:rgba(255,255,255,.14);
+             display:flex;align-items:center;justify-content:center;flex:none;",
+    shiny::icon("seedling", style = "font-size:26px;color:#fff;")
+  ),
+  shiny::tags$div(
+    style = "flex:1;min-width:0;",
+    shiny::tags$div("NDVI FASO",
+                    style = "font-size:24px;font-weight:600;color:#fff;letter-spacing:1px;line-height:1.1;"),
+    shiny::tags$div("Estimation du rendement fourrager \u00b7 Burkina Faso",
+                    style = "font-size:13px;color:#d8ecdf;margin-top:3px;")
+  ),
+  shiny::tags$div(
+    style = "display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none;",
+    shiny::tags$span(
+      style = "background:rgba(255,255,255,.16);color:#fff;font-size:12px;
+               padding:4px 11px;border-radius:20px;white-space:nowrap;",
+      shiny::icon("calendar-days"),
+      sprintf(" Campagne %d\u2013%d",
+              as.integer(format(Sys.Date(), "%Y")),
+              as.integer(format(Sys.Date(), "%Y")) + 1)),
+    shiny::tags$span(
+      style = "color:#c3e2cd;font-size:11px;white-space:nowrap;",
+      shiny::icon("satellite-dish"), " Donn\u00e9es : FEWS NET \u00b7 eVIIRS")
+  )
+)
+
+tricolore <- shiny::tags$div(class = "bf-tricolore",
+                             shiny::tags$div(style = "background:#EF2B2D;"),
+                             shiny::tags$div(style = "background:#FCD116;"),
+                             shiny::tags$div(style = "background:#009543;")
+)
+
+
+
+
 #' Lancer l'application Shiny NDVI FASO
 #'
 #' Application à deux onglets : téléchargement des NDVI eVIIRS et estimation du
@@ -17,149 +71,178 @@ run_app <- function() {
   metriques <- c("Vav", "Vmn", "Vmx", "Rrg", "Rsd",
                  "Aup", "Adn", "Dmn", "Dmx", "Dup", "Ddn")
 
+  # Choix pour la selection par decade
+  annee_max    <- as.integer(format(Sys.Date(), "%Y"))
+  annees       <- annee_max:2012
+  mois_choices <- stats::setNames(1:12,
+                                  c("Janvier","Fevrier","Mars","Avril","Mai","Juin",
+                                    "Juillet","Aout","Septembre","Octobre","Novembre","Decembre"))
+  dec_choices  <- c("Decade1 \u00b7" = 1, "Decade2 \u00b7" = 2, "Decade3 \u00b7" = 3)
+
+
+
   # ============================ UI ============================
-  ui <- shiny::navbarPage(
-    title = "NDVI FASO",
-    header = shiny::tags$head(
-      shiny::tags$link(rel = "stylesheet", type = "text/css",
-                       href = "www/styles.css")
+  ui <- shiny::tagList(
+
+    shiny::tags$head(
+      shiny::tags$style(shiny::HTML(css_entete)),
+      shiny::tags$link(rel = "stylesheet", type = "text/css", href = "www/styles.css")
     ),
 
-    # ---------- ONGLET 1 : TÉLÉCHARGEMENT ----------
-    shiny::tabPanel("Telechargement",
-                    shiny::div(class = "app-header",
-                               shiny::h1("Telechargement NDVI eVIIRS"),
-                               shiny::div(class = "subtitle", "Afrique de l'Ouest - FEWS NET")
-                    ),
-                    shiny::fluidRow(
-                      shiny::column(4,
-                                    shiny::div(class = "panel-card",
-                                               shiny::h4("Parametres"),
-                                               shiny::dateInput("dl_debut", "Date de debut :",
-                                                                value = "2025-05-01", language = "fr"),
-                                               shiny::dateInput("dl_fin", "Date de fin :",
-                                                                value = "2025-05-31", language = "fr"),
-                                               shiny::tags$br(),
-                                               shiny::strong("Dossier de sauvegarde :"),
-                                               shiny::div(style = "margin-top:8px;",
-                                                          shinyFiles::shinyDirButton("dl_dossier", "Parcourir...",
-                                                                                     title = "Choisir un dossier",
-                                                                                     class = "btn-file")),
-                                               shiny::uiOutput("dl_dossier_ui"),
-                                               shiny::tags$br(),
-                                               shiny::actionButton("dl_go", "Lancer le telechargement",
-                                                                   class = "btn-go")
-                                    )
+    banniere,
+    tricolore,
+
+    shiny::navbarPage(
+      title = "", id = "onglets",
+
+      # ---------- ONGLET 1 : TÉLÉCHARGEMENT ----------
+      shiny::tabPanel("Telechargement",
+                      shiny::div(class = "app-header",
+                                 shiny::h1("Telechargement NDVI eVIIRS"),
+                                 shiny::div(class = "subtitle", "Afrique de l'Ouest-FEWS NET")
                       ),
-                      shiny::column(8,
-                                    shiny::div(class = "panel-card",
-                                               shiny::h4("Suivi du telechargement"),
-                                               shiny::div(id = "dl_progress_zone", style = "display:none;",
-                                                          shiny::div(class = "progress-wrap",
-                                                                     shiny::div(class = "progress-outer",
-                                                                                shiny::div(id = "dl_bar", class = "progress-inner",
-                                                                                           style = "width:0%;", "0%")),
-                                                                     shiny::div(class = "progress-meta",
-                                                                                shiny::span(id = "dl_file", class = "fichier", ""),
-                                                                                shiny::span(id = "dl_reste", class = "reste", "")))),
-                                               shiny::uiOutput("dl_statut_ui"),
-                                               shiny::tags$br(),
-                                               shiny::h4("Fichiers telecharges"),
-                                               shiny::tableOutput("dl_fichiers")
-                                    )
+                      shiny::fluidRow(
+                        shiny::column(4,
+                                      shiny::div(class = "panel-card",
+                                                 shiny::h4("Parametres"),
+                                                 shiny::strong("Periode de debut :"),
+                                                 shiny::fluidRow(
+                                                   shiny::column(4, shiny::selectInput("dl_an_debut",  "Annee",  annees,       selected = annee_max)),
+                                                   shiny::column(4, shiny::selectInput("dl_mois_debut","Mois",   mois_choices, selected = 5)),
+                                                   shiny::column(4, shiny::selectInput("dl_dec_debut", "Decade", dec_choices,  selected = 1))
+                                                 ),
+                                                 shiny::strong("Periode de fin :"),
+                                                 shiny::fluidRow(
+                                                   shiny::column(4, shiny::selectInput("dl_an_fin",  "Annee",  annees,       selected = annee_max)),
+                                                   shiny::column(4, shiny::selectInput("dl_mois_fin","Mois",   mois_choices, selected = 5)),
+                                                   shiny::column(4, shiny::selectInput("dl_dec_fin", "Decade", dec_choices,  selected = 3))
+                                                 ),
+                                                 shiny::tags$br(),
+                                                 shiny::strong("Dossier de sauvegarde :"),
+                                                 shiny::div(style = "margin-top:8px;",
+                                                            shinyFiles::shinyDirButton("dl_dossier", "Parcourir...",
+                                                                                       title = "Choisir un dossier",
+                                                                                       class = "btn-file")),
+                                                 shiny::uiOutput("dl_dossier_ui"),
+                                                 shiny::tags$br(),
+                                                 shiny::actionButton("dl_go", "Lancer le telechargement",
+                                                                     class = "btn-go")
+                                      )
+                        ),
+                        shiny::column(8,
+                                      shiny::div(class = "panel-card",
+                                                 shiny::h4("Suivi du telechargement"),
+                                                 shiny::div(id = "dl_progress_zone", style = "display:none;",
+                                                            shiny::div(class = "progress-wrap",
+                                                                       shiny::div(class = "progress-outer",
+                                                                                  shiny::div(id = "dl_bar", class = "progress-inner",
+                                                                                             style = "width:0%;", "0%")),
+                                                                       shiny::div(class = "progress-meta",
+                                                                                  shiny::span(id = "dl_file", class = "fichier", ""),
+                                                                                  shiny::span(id = "dl_reste", class = "reste", "")))),
+                                                 shiny::uiOutput("dl_statut_ui"),
+                                                 shiny::tags$br(),
+                                                 shiny::h4("Fichiers telecharges"),
+                                                 shiny::tableOutput("dl_fichiers")
+                                      )
+                        )
                       )
-                    )
-    ),
+      ),
 
-    # ---------- ONGLET 2 : ESTIMATION ----------
-    shiny::tabPanel("Estimation",
-                    shiny::div(class = "app-header",
-                               shiny::h1("Estimation du rendement fourrager"),
-                               shiny::div(class = "subtitle",
-                                          "Bilan par commune, province, region et national")
-                    ),
+      # ---------- ONGLET 2 : ESTIMATION ----------
+      shiny::tabPanel("Estimation",
+                      shiny::div(class = "app-header",
+                                 shiny::h1("Estimation du rendement fourrager"),
+                                 shiny::div(class = "subtitle",
+                                            "Bilan par commune, province, region et national")
+                      ),
 
-                    # --- Section 1 : les 4 dossiers ---
-                    shiny::div(class = "panel-card",
-                               shiny::h4("1. Dossiers"),
-                               shiny::fluidRow(
-                                 shiny::column(3,
-                                               shiny::strong("NDVI telecharges :"), shiny::br(),
-                                               shinyFiles::shinyDirButton("es_ndvi", "Parcourir...",
-                                                                          "Dossier NDVI", class = "btn-file"),
-                                               shiny::uiOutput("es_ndvi_ui")),
-                                 shiny::column(3,
-                                               shiny::strong("Limites admin (BNDT) :"), shiny::br(),
-                                               shinyFiles::shinyDirButton("es_admin", "Parcourir...",
-                                                                          "Dossier limites", class = "btn-file"),
-                                               shiny::uiOutput("es_admin_ui")),
-                                 shiny::column(3,
-                                               shiny::strong("Occupation du sol (BNDT) :"), shiny::br(),
-                                               shinyFiles::shinyDirButton("es_occ", "Parcourir...",
-                                                                          "Dossier occupation", class = "btn-file"),
-                                               shiny::uiOutput("es_occ_ui")),
-                                 shiny::column(3,
-                                               shiny::strong("Dossier de sortie :"), shiny::br(),
-                                               shinyFiles::shinyDirButton("es_out", "Parcourir...",
-                                                                          "Dossier sortie", class = "btn-file"),
-                                               shiny::uiOutput("es_out_ui"))
-                               ),
-                               shiny::tags$br(),
-                               shiny::actionButton("es_check", "EXECUTER (verifier les donnees)",
-                                                   class = "btn-go"),
-                               shiny::uiOutput("es_check_ui")
-                    ),
+                      # --- Section 1 : les 4 dossiers ---
+                      shiny::div(class = "panel-card",
+                                 shiny::h4("1. Dossiers"),
+                                 shiny::fluidRow(
+                                   shiny::column(3,
+                                                 shiny::strong("NDVI telecharges :"), shiny::br(),
+                                                 shinyFiles::shinyDirButton("es_ndvi", "Parcourir...",
+                                                                            "Dossier NDVI", class = "btn-file"),
+                                                 shiny::uiOutput("es_ndvi_ui")),
+                                   shiny::column(3,
+                                                 shiny::strong("Limites admin (BNDT) :"), shiny::br(),
+                                                 shinyFiles::shinyDirButton("es_admin", "Parcourir...",
+                                                                            "Dossier limites", class = "btn-file"),
+                                                 shiny::uiOutput("es_admin_ui")),
+                                   shiny::column(3,
+                                                 shiny::strong("Occupation du sol (BNDT) :"), shiny::br(),
+                                                 shinyFiles::shinyDirButton("es_occ", "Parcourir...",
+                                                                            "Dossier occupation", class = "btn-file"),
+                                                 shiny::uiOutput("es_occ_ui")),
+                                   shiny::column(3,
+                                                 shiny::strong("Dossier de sortie :"), shiny::br(),
+                                                 shinyFiles::shinyDirButton("es_out", "Parcourir...",
+                                                                            "Dossier sortie", class = "btn-file"),
+                                                 shiny::uiOutput("es_out_ui"))
+                                 ),
+                                 shiny::tags$br(),
+                                 shiny::actionButton("es_check", "EXECUTER (verifier les donnees)",
+                                                     class = "btn-go"),
+                                 shiny::uiOutput("es_check_ui")
+                      ),
 
-                    # --- Section 2 : équation (11 variables) ---
-                    shiny::div(class = "panel-card",
-                               shiny::h4("2. Equation de rendement"),
-                               shiny::helpText("Cochez les variables de votre equation et saisissez ",
-                                               "leurs coefficients. Les variables non cochees ont un ",
-                                               "coefficient de 0."),
-                               shiny::numericInput("es_constante", "Constante :", value = 0),
-                               shiny::tags$hr(),
-                               shiny::fluidRow(
-                                 lapply(metriques, function(m) {
-                                   shiny::column(2,
-                                                 shiny::div(style = "text-align:center; margin-bottom:10px;",
-                                                            shiny::strong(m), shiny::br(),
-                                                            shiny::checkboxInput(paste0("chk_", m), NULL, value = FALSE),
-                                                            shiny::conditionalPanel(
-                                                              condition = sprintf("input.chk_%s == true", m),
-                                                              shiny::numericInput(paste0("coef_", m), NULL, value = 0)
-                                                            )
-                                                 )
-                                   )
-                                 })
-                               ),
-                               shiny::tags$br(),
-                               shiny::actionButton("es_run", "LANCER L'ESTIMATION", class = "btn-go")
-                    ),
+                      # --- Section 2 : équation (11 variables) ---
+                      shiny::div(class = "panel-card",
+                                 shiny::h4("2. Equation de rendement"),
+                                 shiny::helpText("Cochez les variables de votre equation et saisissez ",
+                                                 "leurs coefficients. Les variables non cochees ont un ",
+                                                 "coefficient de 0."),
+                                 shiny::numericInput("es_constante", "Constante :", value = 0),
+                                 shiny::tags$hr(),
+                                 shiny::fluidRow(
+                                   lapply(metriques, function(m) {
+                                     shiny::column(2,
+                                                   shiny::div(style = "text-align:center; margin-bottom:10px;",
+                                                              shiny::strong(m), shiny::br(),
+                                                              shiny::checkboxInput(paste0("chk_", m), NULL, value = FALSE),
+                                                              shiny::conditionalPanel(
+                                                                condition = sprintf("input.chk_%s == true", m),
+                                                                shiny::numericInput(paste0("coef_", m), NULL, value = 0)
+                                                              )
+                                                   )
+                                     )
+                                   })
+                                 ),
+                                 shiny::tags$br(),
+                                 shiny::actionButton("es_run", "LANCER L'ESTIMATION", class = "btn-go")
+                      ),
 
-                    # --- Section 3 : cartes ---
-                    shiny::div(class = "panel-card",
-                               shiny::h4("3. Cartes de rendement"),
-                               shiny::uiOutput("es_resultat_ui"),
-                               shiny::fluidRow(
-                                 shiny::column(6, shiny::imageOutput("es_carte_tous", height = 400)),
-                                 shiny::column(6, shiny::imageOutput("es_carte_pat", height = 400))
-                               )
-                    ),
+                      # --- Section 3 : cartes ---
+                      shiny::div(class = "panel-card",
+                                 shiny::h4("3. Cartes de rendement"),
+                                 shiny::uiOutput("es_resultat_ui"),
+                                 shiny::fluidRow(
+                                   shiny::column(6, shiny::imageOutput("es_carte_tous", height = 400)),
+                                   shiny::column(6, shiny::imageOutput("es_carte_pat", height = 400))
+                                 )
+                      ),
 
-                    shiny::div(class = "app-footer",
-                               shiny::div(style = "text-align:right;",
-                                          shiny::div(class = "auteur-nom", "Propose par KIENDREBEOGO Innocent"),
-                                          shiny::div(class = "auteur-role",
-                                                     "Ingenieur Statisticien Economiste"),
-                                          shiny::tags$a(href = "https://www.linkedin.com/in/innocent-kiendrebeogo-86a3a918b/",
-                                                        target = "_blank", "Profil LinkedIn")),
-                               shiny::tags$img(src = "www/photo.png", alt = "Photo"))
+                      shiny::div(class = "app-footer",
+                                 shiny::div(style = "text-align:right;",
+                                            shiny::div(class = "auteur-nom", "Propose par KIENDREBEOGO Innocent"),
+                                            shiny::div(class = "auteur-role",
+                                                       "Ingenieur Statisticien Economiste"),
+                                            shiny::tags$a(href = "https://www.linkedin.com/in/innocent-kiendrebeogo-86a3a918b/",
+                                                          target = "_blank", "Profil LinkedIn")),
+                                 shiny::tags$img(src = "www/photo.png", alt = "Photo"))
+      )
     )
   )
 
   # ============================ SERVER ============================
   server <- function(input, output, session) {
     shinyjs::useShinyjs(html = TRUE)
+    shiny::observeEvent(input$dl_go, {
+      message(">>> clic dl_go recu, dossier = '",
+              tryCatch(dl_path(), error = function(e) "VIDE"), "'")
+    })
     racines <- c("Accueil" = fs::path_home(), shinyFiles::getVolumes()())
 
     # ---------- Logique onglet TÉLÉCHARGEMENT ----------
@@ -177,30 +260,46 @@ run_app <- function() {
       else shiny::div(class = "dossier-box", p)
     })
 
+
+    # Construit "AAAA-MM-JJ" et un indice comparable a partir de annee/mois/decade
+    dek_date <- function(an, mois, dec) {
+      jour <- c("01", "11", "21")[as.integer(dec)]
+      sprintf("%04d-%02d-%s", as.integer(an), as.integer(mois), jour)
+    }
+    dek_idx <- function(an, mois, dec)
+      as.integer(an) * 36 + (as.integer(mois) - 1) * 3 + as.integer(dec)
+
+
     dl_res <- shiny::eventReactive(input$dl_go, {
-      shiny::validate(shiny::need(length(dl_path()) > 0 && dl_path() != "",
-                                  "Choisissez un dossier."))
+      shiny::validate(
+        shiny::need(length(dl_path()) > 0 && dl_path() != "", "Choisissez un dossier."),
+        shiny::need(
+          dek_idx(input$dl_an_fin,   input$dl_mois_fin,   input$dl_dec_fin) >=
+            dek_idx(input$dl_an_debut, input$dl_mois_debut, input$dl_dec_debut),
+          "La periode de fin doit etre posterieure ou egale au debut.")
+      )
+      d_debut <- dek_date(input$dl_an_debut, input$dl_mois_debut, input$dl_dec_debut)
+      d_fin   <- dek_date(input$dl_an_fin,   input$dl_mois_fin,   input$dl_dec_fin)
+
       dest <- dl_path(); t0 <- Sys.time()
-      shinyjs::show("dl_progress_zone")
-      maj <- function(i, total, fichier) {
-        pct <- round(100 * i / total)
-        ecoule <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
-        reste <- if (i > 0 && i < total) {
-          rs <- (ecoule / i) * (total - i); m <- floor(rs/60); s <- round(rs%%60)
-          if (m > 0) sprintf("~ %d min %02d s", m, s) else sprintf("~ %d s", s)
-        } else "termine"
-        shinyjs::runjs(sprintf(
-          "var b=document.getElementById('dl_bar');b.style.width='%d%%';b.innerText='%d%%';
-           document.getElementById('dl_file').innerText='%s';
-           document.getElementById('dl_reste').innerText='%s';",
-          pct, pct, fichier, reste))
-        Sys.sleep(0.05)
-      }
-      ndvi_download(as.character(input$dl_debut), as.character(input$dl_fin),
-                    dossier = dest, on_progress = maj)
+      shiny::withProgress(message = "Telechargement en cours", value = 0, {
+        maj <- function(i, total, fichier) {
+          reste <- if (i > 0 && i < total) {
+            ecoule <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
+            rs <- (ecoule / i) * (total - i); m <- floor(rs/60); s <- round(rs%%60)
+            if (m > 0) sprintf(" - reste ~%d min %02d s", m, s) else sprintf(" - reste ~%d s", s)
+          } else ""
+          shiny::setProgress(value = i / total,
+                             detail = sprintf("%d/%d - %s%s", i, total, fichier, reste))
+        }
+        ndvi_download(d_debut, d_fin, dossier = dest, on_progress = maj)
+      })
+
       list(dossier = dest,
            tifs = list.files(dest, pattern = "\\.tif$"))
     })
+
+
     output$dl_statut_ui <- shiny::renderUI({
       r <- dl_res()
       if (length(r$tifs) == 0)
