@@ -16,6 +16,7 @@ run_app <- function() {
   shiny::addResourcePath("www", system.file("app/www", package = "ndvifaso"))
 
   ui <- shiny::fluidPage(
+    shinyjs::useShinyjs(),
     shiny::tags$head(
       shiny::tags$link(rel = "stylesheet", type = "text/css",
                        href = "www/styles.css"),
@@ -25,7 +26,7 @@ run_app <- function() {
     shiny::div(class = "app-header",
                shiny::h1("NDVI FASO"),
                shiny::div(class = "subtitle",
-                          "Telechargement des NDVI decadaires eVIIRS - Burkina Faso")
+                          "Telechargement des NDVI decadaires eVIIRS - Afrique de l'Ouest")
     ),
 
     shiny::fluidRow(
@@ -53,6 +54,21 @@ run_app <- function() {
       shiny::column(width = 8,
                     shiny::div(class = "panel-card",
                                shiny::h4("Suivi du telechargement"),
+
+                               # Barre de progression dans la page (pilotee par shinyjs).
+                               shiny::div(id = "progress_zone", style = "display:none;",
+                                          shiny::div(class = "progress-wrap",
+                                                     shiny::div(class = "progress-outer",
+                                                                shiny::div(id = "progress_bar", class = "progress-inner",
+                                                                           style = "width:0%;", "0%")
+                                                     ),
+                                                     shiny::div(class = "progress-meta",
+                                                                shiny::span(id = "progress_file", class = "fichier", ""),
+                                                                shiny::span(id = "progress_reste", class = "reste", "")
+                                                     )
+                                          )
+                               ),
+
                                shiny::uiOutput("statut_ui"),
                                shiny::tags$br(),
                                shiny::h4("Fichiers telecharges"),
@@ -103,32 +119,44 @@ run_app <- function() {
       dest <- dossier_path()
       t0 <- Sys.time()
 
-      # Barre de progression NATIVE : se rafraichit pendant la boucle.
-      shiny::withProgress(message = "Telechargement en cours", value = 0, {
+      # Affiche la zone de progression et la remet a zero.
+      shinyjs::show("progress_zone")
+      shinyjs::runjs(
+        "document.getElementById('progress_bar').style.width='0%';
+         document.getElementById('progress_bar').innerText='0%';"
+      )
 
-        maj <- function(i, total, fichier) {
-          # Estimation du temps restant a partir du rythme observe.
-          ecoule <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
-          reste_s <- if (i > 0) (ecoule / i) * (total - i) else NA
-          reste_txt <- if (is.na(reste_s) || i == total) "termine" else {
-            m <- floor(reste_s / 60); s <- round(reste_s %% 60)
-            if (m > 0) sprintf("~ %d min %02d s restantes", m, s)
-            else sprintf("~ %d s restantes", s)
-          }
-          # Met a jour la barre : fraction + detail (fichier + temps restant).
-          shiny::setProgress(
-            value  = i / total,
-            detail = sprintf("%s  (%d/%d)  -  %s", fichier, i, total, reste_txt)
-          )
+      # Callback appele apres chaque decade : met a jour la barre dans la page.
+      maj <- function(i, total, fichier) {
+        pct <- round(100 * i / total)
+
+        ecoule <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
+        reste_s <- if (i > 0) (ecoule / i) * (total - i) else NA
+        reste_txt <- if (is.na(reste_s) || i == total) "termine" else {
+          m <- floor(reste_s / 60); s <- round(reste_s %% 60)
+          if (m > 0) sprintf("~ %d min %02d s restantes", m, s)
+          else sprintf("~ %d s restantes", s)
         }
 
-        ndvi_download(
-          as.character(input$date_debut),
-          as.character(input$date_fin),
-          dossier     = dest,
-          on_progress = maj
+        # Injecte largeur + textes dans le HTML, cote navigateur.
+        js <- sprintf(
+          "var b=document.getElementById('progress_bar');
+           b.style.width='%d%%'; b.innerText='%d%%';
+           document.getElementById('progress_file').innerText='%s';
+           document.getElementById('progress_reste').innerText='%s';",
+          pct, pct, fichier, reste_txt
         )
-      })
+        shinyjs::runjs(js)
+        # Laisse au navigateur le temps de redessiner la barre.
+        Sys.sleep(0.05)
+      }
+
+      ndvi_download(
+        as.character(input$date_debut),
+        as.character(input$date_fin),
+        dossier     = dest,
+        on_progress = maj
+      )
 
       list(
         dossier = dest,

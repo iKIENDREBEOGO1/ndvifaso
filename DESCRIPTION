@@ -15,6 +15,7 @@ Imports:
     sf,
     shiny,
     shinyFiles,
+    shinyjs,
     terra
 URL: https://github.com/iKIENDREBEOGO1/ndvifaso
 BugReports: https://github.com/iKIENDREBEOGO1/ndvifaso/issues
