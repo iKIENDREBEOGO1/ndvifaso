@@ -2,7 +2,7 @@
 % Please edit documentation in R/run_app.R
 \name{run_app}
 \alias{run_app}
-\title{Lancer l'application Shiny de téléchargement NDVI eVIIRS}
+\title{Lancer l'application Shiny NDVI FASO}
 \usage{
 run_app()
 }
@@ -11,7 +11,8 @@ Lance l'application Shiny (ne retourne rien).
 }
 \description{
 Interface graphique pour télécharger les NDVI décadaires eVIIRS (FEWS NET)
-sur une plage de dates, dans un dossier choisi par l'utilisateur.
+sur une plage de dates, dans un dossier choisi par l'utilisateur, avec suivi
+de progression détaillé.
 }
 \examples{
 \dontrun{

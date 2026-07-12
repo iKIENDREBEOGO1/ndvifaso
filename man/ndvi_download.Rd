@@ -4,15 +4,32 @@
 \alias{ndvi_download}
 \title{Télécharger les NDVI eVIIRS (FEWS NET) sur une plage de dates}
 \usage{
-ndvi_download(date_debut, date_fin, dossier = file.path(tempdir(), "ndvi"))
+ndvi_download(
+  date_debut,
+  date_fin,
+  dossier = file.path(tempdir(), "ndvi"),
+  pause_min = 2,
+  pause_max = 5,
+  pause_annee = 10,
+  on_progress = NULL
+)
 }
 \arguments{
 \item{date_debut}{Date de début, au format "AAAA-MM-JJ".}
 
 \item{date_fin}{Date de fin, au format "AAAA-MM-JJ".}
 
-\item{dossier}{Dossier de destination des fichiers. Par défaut, un
-sous-dossier temporaire de la session R.}
+\item{dossier}{Dossier de destination. Par défaut, un sous-dossier temporaire.}
+
+\item{pause_min, pause_max}{Bornes (en secondes) du délai aléatoire entre deux
+téléchargements. Un délai est tiré au hasard dans cet intervalle.}
+
+\item{pause_annee}{Pause (en secondes) appliquée au passage à une nouvelle
+année dans la séquence des décades.}
+
+\item{on_progress}{Fonction optionnelle appelée après chaque décade, avec les
+arguments \code{i} (indice courant), \code{total} (nombre de décades) et
+\code{fichier} (nom du fichier). Sert à alimenter une barre de progression.}
 }
 \value{
 (De façon invisible) le chemin du dossier contenant les .tif.

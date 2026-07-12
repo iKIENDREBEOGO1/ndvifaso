@@ -2,7 +2,7 @@
 #'
 #' Importe un fichier .tif NDVI eVIIRS (FEWS NET), le découpe sur l'emprise du
 #' Burkina Faso (frontière embarquée dans le package), met à NA les valeurs
-#' invalides, puis convertit les comptes numériques en NDVI réel dans [-1, 1].
+#' invalides, puis convertit les comptes numériques en NDVI réel dans \[-1, 1\].
 #'
 #' @param path_tif Chemin vers le fichier .tif NDVI à traiter.
 #'
