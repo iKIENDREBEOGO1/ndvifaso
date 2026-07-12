@@ -9,13 +9,18 @@ Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 8.0.0
 Imports: 
+    exactextractr,
     fs,
+    ggplot2,
+    ggspatial,
     httr,
     leaflet,
+    openxlsx,
     sf,
     shiny,
     shinyFiles,
     shinyjs,
-    terra
+    terra,
+    tidyterra
 URL: https://github.com/iKIENDREBEOGO1/ndvifaso
 BugReports: https://github.com/iKIENDREBEOGO1/ndvifaso/issues
