@@ -9,6 +9,10 @@ Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 8.0.0
 Imports: 
+    fs,
     httr,
+    leaflet,
     sf,
+    shiny,
+    shinyFiles,
     terra
