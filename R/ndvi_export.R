@@ -68,7 +68,8 @@ ndvi_export <- function(agregation, rendement_total, contour,
       ggplot2::geom_sf(data = contour_sf, fill = NA, color = "black",
                        linewidth = 0.5) +
       ggplot2::scale_fill_manual(values = couleurs, na.value = "transparent",
-                                 name = "Rendement\n(kg/ha)", drop = FALSE) +
+                                 name = "Rendement\n(kg/ha)", drop = FALSE,
+                                 na.translate = FALSE) +
       ggplot2::labs(title = titre) +
       ggspatial::annotation_scale(location = "bl") +
       ggspatial::annotation_north_arrow(location = "tr",
