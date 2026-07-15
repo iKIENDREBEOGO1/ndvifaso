@@ -27,13 +27,19 @@
 ndvi_agregation <- function(rendement, paturage,
                             communes, provinces, regions) {
 
-  # 1. Masque pâturable : ne garder que les pixels en savane/steppe. ("carte 2")
-  pat_vect <- terra::vect(paturage)
-  pat_vect <- terra::project(pat_vect, terra::crs(rendement))
-  rend_pat <- terra::mask(rendement, pat_vect)
+  # 1. Masque pâturable pondéré par la fraction de couverture. ("carte 2")
+  #    Un pixel de 400 m ne compte que sa part reellement paturable,
+  #    au lieu d'etre pris en entier des qu'il touche un polygone.
+  pat_sf <- sf::st_as_sf(paturage)
+  pat_sf <- sf::st_transform(pat_sf, terra::crs(rendement))
+  pat_sf <- sf::st_union(pat_sf)                    # fusionne les 14 248 polygones
 
-  # 2. Surface réelle de chaque pixel (en ha), alignée sur les NA du rendement.
-  surf <- terra::cellSize(rend_pat, unit = "ha")
+  frac <- exactextractr::coverage_fraction(rendement, pat_sf)[[1]]
+
+  rend_pat <- terra::mask(rendement, frac, maskvalues = 0)
+
+  # 2. Surface de chaque pixel (ha), ponderee par sa fraction paturable.
+  surf <- terra::cellSize(rend_pat, unit = "ha") * frac
   surf <- terra::mask(surf, rend_pat)
 
   # 3. Production par pixel (kg) = rendement (kg/ha) × surface (ha).

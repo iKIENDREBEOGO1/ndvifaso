@@ -1,4 +1,3 @@
-
 # ---------- En-tête NDVI FASO ----------
 
 css_entete <- "
@@ -12,6 +11,9 @@ css_entete <- "
           border-bottom:3px solid #0f6e43 !important; }
 .bf-tricolore { display:flex; height:4px; } .bf-tricolore > div { flex:1; }
 body { background:#f5f7f5; }
+.var-box { text-align:center; margin-bottom:14px; padding:8px 4px;
+           border:1px solid #eceff1; border-radius:8px; }
+.var-box .form-group { margin-bottom:6px; }
 "
 
 banniere <- shiny::tags$div(
@@ -50,8 +52,6 @@ tricolore <- shiny::tags$div(class = "bf-tricolore",
 )
 
 
-
-
 #' Lancer l'application Shiny NDVI FASO
 #'
 #' Application à deux onglets : téléchargement des NDVI eVIIRS et estimation du
@@ -68,8 +68,10 @@ run_app <- function() {
 
   shiny::addResourcePath("www", system.file("app/www", package = "ndvifaso"))
 
+  # 14 metriques disponibles (voir ndvi_phenologie)
   metriques <- c("Vav", "Vmn", "Vmx", "Rrg", "Rsd",
-                 "Aup", "Adn", "Dmn", "Dmx", "Dup", "Ddn")
+                 "Aup", "Adn", "Dmn", "Dmx", "Dup", "Ddn",
+                 "iNDVI", "iNDVI_seuil", "Duree")
 
   # Choix pour la selection par decade
   annee_max    <- as.integer(format(Sys.Date(), "%Y"))
@@ -78,7 +80,6 @@ run_app <- function() {
                                   c("Janvier","Fevrier","Mars","Avril","Mai","Juin",
                                     "Juillet","Aout","Septembre","Octobre","Novembre","Decembre"))
   dec_choices  <- c("Decade1 \u00b7" = 1, "Decade2 \u00b7" = 2, "Decade3 \u00b7" = 3)
-
 
 
   # ============================ UI ============================
@@ -188,23 +189,42 @@ run_app <- function() {
                                  shiny::uiOutput("es_check_ui")
                       ),
 
-                      # --- Section 2 : équation (11 variables) ---
+                      # --- Section 2 : équation (14 variables, brut ou log) ---
                       shiny::div(class = "panel-card",
                                  shiny::h4("2. Equation de rendement"),
-                                 shiny::helpText("Cochez les variables de votre equation et saisissez ",
-                                                 "leurs coefficients. Les variables non cochees ont un ",
-                                                 "coefficient de 0."),
-                                 shiny::numericInput("es_constante", "Constante :", value = 0),
+                                 shiny::fluidRow(
+                                   shiny::column(4,
+                                                 shiny::radioButtons("es_reponse", "L'equation predit :",
+                                                                     c("Le rendement (kg/ha)" = "brut",
+                                                                       "Le log du rendement"   = "log"),
+                                                                     selected = "brut")),
+                                   shiny::column(4,
+                                                 shiny::numericInput("es_constante", "Constante :", value = 0)),
+                                   shiny::column(4,
+                                                 shiny::conditionalPanel(
+                                                   condition = "input.es_reponse == 'log'",
+                                                   shiny::numericInput("es_duan",
+                                                                       "Facteur de correction (Duan) :",
+                                                                       value = 1, step = 0.01),
+                                                   shiny::helpText("mean(exp(residus)) du modele cale. ",
+                                                                   "Corrige le biais de retro-transformation.")))
+                                 ),
                                  shiny::tags$hr(),
+                                 shiny::helpText("Cochez les variables de votre equation, saisissez leur ",
+                                                 "coefficient et choisissez la transformation (brut ou log). ",
+                                                 "Les variables non cochees ont un coefficient de 0."),
                                  shiny::fluidRow(
                                    lapply(metriques, function(m) {
                                      shiny::column(2,
-                                                   shiny::div(style = "text-align:center; margin-bottom:10px;",
+                                                   shiny::div(class = "var-box",
                                                               shiny::strong(m), shiny::br(),
                                                               shiny::checkboxInput(paste0("chk_", m), NULL, value = FALSE),
                                                               shiny::conditionalPanel(
                                                                 condition = sprintf("input.chk_%s == true", m),
-                                                                shiny::numericInput(paste0("coef_", m), NULL, value = 0)
+                                                                shiny::numericInput(paste0("coef_", m), NULL, value = 0),
+                                                                shiny::selectInput(paste0("tr_", m), NULL,
+                                                                                   c("brut" = "brut", "log" = "log"),
+                                                                                   selected = "brut")
                                                               )
                                                    )
                                      )
@@ -239,10 +259,6 @@ run_app <- function() {
   # ============================ SERVER ============================
   server <- function(input, output, session) {
     shinyjs::useShinyjs(html = TRUE)
-    shiny::observeEvent(input$dl_go, {
-      message(">>> clic dl_go recu, dossier = '",
-              tryCatch(dl_path(), error = function(e) "VIDE"), "'")
-    })
     racines <- c("Accueil" = fs::path_home(), shinyFiles::getVolumes()())
 
     # ---------- Logique onglet TÉLÉCHARGEMENT ----------
@@ -260,7 +276,6 @@ run_app <- function() {
       else shiny::div(class = "dossier-box", p)
     })
 
-
     # Construit "AAAA-MM-JJ" et un indice comparable a partir de annee/mois/decade
     dek_date <- function(an, mois, dec) {
       jour <- c("01", "11", "21")[as.integer(dec)]
@@ -268,7 +283,6 @@ run_app <- function() {
     }
     dek_idx <- function(an, mois, dec)
       as.integer(an) * 36 + (as.integer(mois) - 1) * 3 + as.integer(dec)
-
 
     dl_res <- shiny::eventReactive(input$dl_go, {
       shiny::validate(
@@ -298,7 +312,6 @@ run_app <- function() {
       list(dossier = dest,
            tifs = list.files(dest, pattern = "\\.tif$"))
     })
-
 
     output$dl_statut_ui <- shiny::renderUI({
       r <- dl_res()
@@ -363,20 +376,27 @@ run_app <- function() {
                                  pattern = "wa2025(1[0-9]|2[0-9])\\.tif$", full.names = TRUE))
         cube <- terra::rast(lapply(files, ndvi_clip_bf))
 
-        # 2. Métriques
+        # 2. Métriques (14)
         shiny::setProgress(0.3, detail = "Metriques phenologiques")
         phen <- ndvi_phenologie(cube, echelle_angle = "degres")
 
-        # 3. Rendement (équation utilisateur)
+        # 3. Rendement : equation utilisateur (coef + transformation brut/log)
         shiny::setProgress(0.5, detail = "Application de l'equation")
-        coefs <- numeric(0)
+        coefs <- numeric(0); log_vars <- character(0)
         for (m in metriques) {
           if (isTRUE(input[[paste0("chk_", m)]])) {
             coefs[m] <- input[[paste0("coef_", m)]]
+            if (identical(input[[paste0("tr_", m)]], "log")) log_vars <- c(log_vars, m)
           }
         }
-        rendement <- ndvi_rendement(phen, constante = input$es_constante,
-                                    coefficients = coefs)
+        rendement <- ndvi_rendement(
+          phen,
+          constante    = input$es_constante,
+          coefficients = coefs,
+          log_vars     = log_vars,
+          reponse      = input$es_reponse,
+          facteur_duan = if (identical(input$es_reponse, "log")) input$es_duan else 1
+        )
 
         # 4. Couches admin + occupation
         shiny::setProgress(0.6, detail = "Chargement BNDT")
@@ -419,7 +439,7 @@ run_app <- function() {
                  shiny::tags$code(r$out))
     })
 
-    # Cartes affichées côte à côte (classées)
+    # Cartes affichées côte à côte (les PNG sauvegardés)
     output$es_carte_tous <- shiny::renderImage({
       r <- es_result()
       list(src = file.path(r$out, "carte_rendement_tous_pixels.png"),
@@ -436,4 +456,3 @@ run_app <- function() {
 
   shiny::shinyApp(ui, server)
 }
-

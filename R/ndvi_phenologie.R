@@ -2,8 +2,8 @@
 #'
 #' À partir d'un empilement de décades NDVI (SpatRaster multi-couches, ordonné
 #' chronologiquement), calcule pour chaque pixel les métriques phénologiques :
-#' moyennes/extrema, amplitudes, angles de croissance/décroissance et dates
-#' relatives (numéro de décade).
+#' moyennes/extrema, amplitudes, angles de croissance/décroissance, dates
+#' relatives (numéro de décade) et indicateurs cumulés de la saison.
 #'
 #' @param cube Un \code{SpatRaster} dont chaque couche est une décade NDVI réel,
 #'   dans l'ordre chronologique.
@@ -11,9 +11,13 @@
 #'   couches, dans le même ordre. Par défaut 10:29 (avril D1 -> octobre D2).
 #' @param echelle_angle Convention pour Aup/Adn : "degres" (angles -90 à +90)
 #'   ou "byte" (encodage FEWS NET 0 à 180, soit angle + 90).
+#' @param seuil_sol Seuil de NDVI en dessous duquel le couvert est considéré
+#'   comme sol nu, utilisé pour \code{iNDVI_seuil}. Par défaut 0.15.
+#' @param seuil_vert Seuil de NDVI au-dessus duquel une décade est comptée comme
+#'   "verte", utilisé pour \code{Duree}. Par défaut 0.2.
 #'
-#' @return Un \code{SpatRaster} à 11 couches, une par métrique : Vav, Vmn, Vmx,
-#'   Rrg, Rsd, Aup, Adn, Dmn, Dmx, Dup, Ddn.
+#' @return Un \code{SpatRaster} à 14 couches, une par métrique : Vav, Vmn, Vmx,
+#'   Rrg, Rsd, Aup, Adn, Dmn, Dmx, Dup, Ddn, iNDVI, iNDVI_seuil, Duree.
 #' @export
 #'
 #' @examples
@@ -22,23 +26,30 @@
 #' cube  <- terra::rast(files)
 #' phen  <- ndvi_phenologie(cube)
 #' terra::plot(phen[["Vav"]])
+#' terra::plot(phen[["iNDVI_seuil"]])
 #' }
 ndvi_phenologie <- function(cube,
                             dekads = 10:29,
-                            echelle_angle = c("degres", "byte")) {
+                            echelle_angle = c("degres", "byte"),
+                            seuil_sol = 0.15,
+                            seuil_vert = 0.2) {
 
   echelle_angle <- match.arg(echelle_angle)
-
   n <- terra::nlyr(cube)
   if (length(dekads) != n) {
     stop("Le nombre de decades (", length(dekads),
          ") ne correspond pas au nombre de couches du cube (", n, ").")
   }
 
+  noms <- c("Vav", "Vmn", "Vmx", "Rrg", "Rsd",
+            "Aup", "Adn", "Dmn", "Dmx", "Dup", "Ddn",
+            "iNDVI", "iNDVI_seuil", "Duree")
+  nm <- length(noms)
+
   # Fonction appliquee a la serie temporelle (v) de CHAQUE pixel.
   calc_metriques <- function(v) {
     # Pixel entierement vide -> tout NA.
-    if (all(is.na(v))) return(rep(NA_real_, 11))
+    if (all(is.na(v))) return(rep(NA_real_, nm))
 
     vav <- mean(v, na.rm = TRUE)
     vmn <- min(v,  na.rm = TRUE)
@@ -72,12 +83,17 @@ ndvi_phenologie <- function(cube,
     dup <- if (is.na(i_up)) NA_real_ else dekads[i_up]
     ddn <- if (is.na(i_dn)) NA_real_ else dekads[i_dn]
 
+    # Indicateurs cumules de la dynamique saisonniere.
+    indvi       <- sum(v, na.rm = TRUE)                       # aire sous la courbe
+    indvi_seuil <- sum(pmax(v - seuil_sol, 0), na.rm = TRUE)  # aire nette du sol nu
+    duree       <- sum(v > seuil_vert, na.rm = TRUE)          # nb de decades vertes
+
     c(Vav = vav, Vmn = vmn, Vmx = vmx, Rrg = rrg, Rsd = rsd,
-      Aup = aup, Adn = adn, Dmn = dmn, Dmx = dmx, Dup = dup, Ddn = ddn)
+      Aup = aup, Adn = adn, Dmn = dmn, Dmx = dmx, Dup = dup, Ddn = ddn,
+      iNDVI = indvi, iNDVI_seuil = indvi_seuil, Duree = duree)
   }
 
   out <- terra::app(cube, fun = calc_metriques)
-  names(out) <- c("Vav", "Vmn", "Vmx", "Rrg", "Rsd",
-                  "Aup", "Adn", "Dmn", "Dmx", "Dup", "Ddn")
+  names(out) <- noms
   out
 }
